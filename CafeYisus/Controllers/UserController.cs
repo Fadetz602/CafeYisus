@@ -1,4 +1,6 @@
-﻿using CafeYisus.Models;
+﻿using CafeYisus.DTOs;
+using CafeYisus.Helpers;
+using CafeYisus.Models;
 using CafeYisus.Queries;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -60,9 +62,7 @@ namespace CafeYisus.Controllers
                     u.Role.Name
                 }
             })
-    .ToListAsync();
-
-
+            .ToListAsync();
 
             var result = new
             {
@@ -75,5 +75,48 @@ namespace CafeYisus.Controllers
 
             return Ok(result);
         }
+
+        //[Authorize(Policy = "AdminRole")]
+        [HttpPost]
+        public async Task<IActionResult> AddUser(RegisterDto dto)
+        {
+            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Username) ||
+              string.IsNullOrWhiteSpace(dto.Password) || string.IsNullOrWhiteSpace(dto.FullName) ||
+                dto.RoleId <= 0)
+                return BadRequest("Please fill in all field");
+
+            if (await _context.Users.AnyAsync(u => u.Username.ToLower() == dto.Username.ToLower()))
+                return BadRequest("Username already exists");
+
+            if (!RegexHelper.IsMatch(dto.Email, RegexPatterns.Email))
+                return BadRequest("Wrong email format");
+
+            if (!RegexHelper.IsMatch(dto.Password, RegexPatterns.Password))
+                return BadRequest("Password must has at least 8 characters");
+
+            if (await _context.Users.AnyAsync(u => u.Email.Equals(dto.Email)))
+                return BadRequest("Email has already existed");
+
+            var roleExist = await _context.Roles.AnyAsync(r => r.Id == dto.RoleId);
+            if (!roleExist)
+                return BadRequest("Role doens't exist");
+
+            var user = new User
+            {
+                Username = dto.Username,
+                PasswordHash = dto.Password,
+                FullName = dto.FullName,
+                Email = dto.Email,
+                RoleId = dto.RoleId,
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            return Ok("Add user successfully!");
+        }
     }
 }
+
+
+
